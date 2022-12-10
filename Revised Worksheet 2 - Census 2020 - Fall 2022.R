@@ -3,69 +3,74 @@ library(tidycensus)
 
 get_worksheet2_2020 <- function(unit) {
   if (!unit %in% c("dmv", "counties", "place")) {stop("unit should be either 'dmv', 'place', or 'counties'")}
+  
   if(unit == "dmv") {
     int_inc_20 <-
-  get_acs("metropolitan statistical area/micropolitan statistical area",
-          variables = "B19054_002",
-          summary_var = "B19054_001",
-          year = 2020) %>%
-  mutate(perc = estimate / summary_est * 100) %>%
-  filter(GEOID == "47900") %>%
-  left_join(load_variables(2020, "acs5", T), by = c("variable" = "name")) %>%
-  select(GEOID, NAME, label, estimate, summary_est, perc) %>%
-  mutate(label = str_remove(label, ".*!"),
-         NAME = str_extract(NAME, ".*,"))
-
-single_mother_w_young_20 <- get_acs(
-    "metropolitan statistical area/micropolitan statistical area",
-    variables = "B11004_016",
-    summary_var = "B11004_001",
-    year = 2020
-  ) %>%
-    filter(GEOID == "47900") %>%
-    left_join(load_variables(2020, "acs5", T), by = c("variable" = "name")) %>%
-    mutate(label = str_remove(label, ".*!"),
-           NAME = str_extract(NAME, ".*,")) %>%
-    group_by(GEOID, NAME) %>%
-    summarise(estimate = sum(estimate),
-              summary_est = mean(summary_est)) %>%
-    ungroup() %>%
-    mutate(perc = estimate / summary_est * 100,
-           label = "single-female-headed with young children") %>%
-    select(GEOID, NAME, label, estimate, summary_est, perc)
-
-owner_occ_20 <- #DP04_0045
-  get_acs("metropolitan statistical area/micropolitan statistical area",
-          variables = "DP04_0046",
-          summary_var = "DP04_0045",
-          year = 2020) %>%
-  mutate(perc = estimate / summary_est * 100) %>%
-  filter(GEOID == "47900") %>%
-  left_join(load_variables(2020, "acs5/profile", T), by = c("variable" = "name")) %>%
-  select(GEOID, NAME, label, estimate, summary_est, perc) %>%
-  mutate(label = str_remove(label, ".*!"),
-         NAME = str_extract(NAME, ".*,"))
-
-med_value_20 <- #DP04_0088
-  get_acs("metropolitan statistical area/micropolitan statistical area",
-          variables = "DP04_0089",
-          year = 2020) %>%
-  filter(GEOID == "47900") %>%
-  left_join(load_variables(2020, "acs5/profile", T), by = c("variable" = "name")) %>%
-  select(GEOID, NAME, label, estimate) %>%
-  mutate(label = str_remove(label, ".*!"),
-         NAME = str_extract(NAME, ".*,"))
-
-med_hh_inc_20 <- #B19013_001
-  get_acs("metropolitan statistical area/micropolitan statistical area",
-          variables = "B19013_001",
-          year = 2020) %>%
-  filter(GEOID == "47900") %>%
-  left_join(load_variables(2020, "acs5", T), by = c("variable" = "name")) %>%
-  select(GEOID, NAME, label, estimate) %>%
-  mutate(label = str_remove(label, ".*!"),
-         NAME = str_extract(NAME, ".*,"))
-bind_rows(med_hh_inc_20, int_inc_20, owner_occ_20, med_value_20, single_mother_w_young_20)
+      get_acs("metropolitan statistical area/micropolitan statistical area",
+              variables = "B19054_002",
+              summary_var = "B19054_001",
+              year = 2020) %>%
+      mutate(perc = estimate / summary_est * 100) %>%
+      filter(GEOID == "47900") %>%
+      left_join(load_variables(2020, "acs5", T), by = c("variable" = "name")) %>%
+      select(GEOID, NAME, label, estimate, summary_est, perc) %>%
+      mutate(label = str_remove(label, ".*!"),
+             NAME = str_extract(NAME, ".*,"))
+    
+    single_mother_w_young_20 <- get_acs(
+      "metropolitan statistical area/micropolitan statistical area",
+      variables = "B11004_016",
+      summary_var = "B11004_001",
+      year = 2020
+    ) %>%
+      filter(GEOID == "47900") %>%
+      left_join(load_variables(2020, "acs5", T), by = c("variable" = "name")) %>%
+      mutate(label = str_remove(label, ".*!"),
+             NAME = str_extract(NAME, ".*,")) %>%
+      group_by(GEOID, NAME) %>%
+      summarise(estimate = sum(estimate),
+                summary_est = mean(summary_est)) %>%
+      ungroup() %>%
+      mutate(perc = estimate / summary_est * 100,
+             label = "single-female-headed with young children") %>%
+      select(GEOID, NAME, label, estimate, summary_est, perc)
+    
+    owner_occ_20 <- #DP04_0045
+      get_acs("metropolitan statistical area/micropolitan statistical area",
+              variables = "DP04_0046",
+              summary_var = "DP04_0045",
+              year = 2020) %>%
+      mutate(perc = estimate / summary_est * 100) %>%
+      filter(GEOID == "47900") %>%
+      left_join(load_variables(2020, "acs5/profile", T), by = c("variable" = "name")) %>%
+      select(GEOID, NAME, label, estimate, summary_est, perc) %>%
+      mutate(label = str_remove(label, ".*!"),
+             NAME = str_extract(NAME, ".*,"))
+    
+    med_value_20 <- #DP04_0088
+      get_acs("metropolitan statistical area/micropolitan statistical area",
+              variables = "DP04_0089",
+              year = 2020) %>%
+      filter(GEOID == "47900") %>%
+      left_join(load_variables(2020, "acs5/profile", T), by = c("variable" = "name")) %>%
+      select(GEOID, NAME, label, estimate) %>%
+      mutate(label = str_remove(label, ".*!"),
+             NAME = str_extract(NAME, ".*,"))
+    
+    med_hh_inc_20 <- #B19013_001
+      get_acs("metropolitan statistical area/micropolitan statistical area",
+              variables = "B19013_001",
+              year = 2020) %>%
+      filter(GEOID == "47900") %>%
+      left_join(load_variables(2020, "acs5", T), by = c("variable" = "name")) %>%
+      select(GEOID, NAME, label, estimate) %>%
+      mutate(label = str_remove(label, ".*!"),
+             NAME = str_extract(NAME, ".*,"))
+    
+    all_dmv <- bind_rows(med_hh_inc_20, int_inc_20, owner_occ_20, med_value_20, single_mother_w_young_20) %>% 
+      mutate(NAME = "DMV Metro area",
+             year = 2020)
+    return(all_dmv)
   }
   
   if(unit == "place") {
@@ -131,84 +136,90 @@ bind_rows(med_hh_inc_20, int_inc_20, owner_occ_20, med_value_20, single_mother_w
       mutate(label = str_remove(label, ".*!"),
              NAME = str_extract(NAME, ".*,"))
     
-    bind_rows(med_hh_inc_20, int_inc_20, owner_occ_20, med_value_20, single_mother_w_young_20) %>%
+    all_places <- bind_rows(med_hh_inc_20, int_inc_20, owner_occ_20, med_value_20, single_mother_w_young_20) %>%
+      mutate(year = 2020,
+             NAME = str_squish(str_remove(NAME, "CDP.*|city.*|County.*"))) %>% 
       arrange(GEOID)
+    return(all_places)
   }
   else {
     int_inc_20 <-
-  get_acs("county",
-          state = c("DC", "MD", "VA"),
-          variables = "B19054_002",
-          summary_var = "B19054_001",
-          year = 2020) %>%
-  mutate(perc = estimate / summary_est * 100) %>%
-  left_join(load_variables(2020, "acs5", T), by = c("variable" = "name")) %>%
-  select(GEOID, NAME, label, estimate, summary_est, perc) %>%
-  mutate(label = str_remove(label, ".*!"),
-         NAME = str_extract(NAME, ".*,"))
-
-single_mother_w_young_20 <- get_acs(
-  "county",
-  state = c("DC", "MD", "VA"),
-  variables = "B11004_016",
-  summary_var = "B11004_001",
-  year = 2020
-) %>%
-  left_join(load_variables(2020, "acs5", T), by = c("variable" = "name")) %>%
-  mutate(label = str_remove(label, ".*!"),
-         NAME = str_extract(NAME, ".*,")) %>%
-  group_by(GEOID, NAME) %>%
-  summarise(estimate = sum(estimate),
-            summary_est = mean(summary_est)) %>%
-  ungroup() %>%
-  mutate(perc = estimate / summary_est * 100,
-         label = "single-female-headed with young children") %>%
-  select(GEOID, NAME, label, estimate, summary_est, perc)
-
-owner_occ_20 <- #DP04_0045
-  get_acs("county",
-          state = c("DC", "MD", "VA"),
-          variables = "DP04_0046",
-          summary_var = "DP04_0045",
-          year = 2020) %>%
-  mutate(perc = estimate / summary_est * 100) %>%
-  left_join(load_variables(2020, "acs5/profile", T), by = c("variable" = "name")) %>%
-  select(GEOID, NAME, label, estimate, summary_est, perc) %>%
-  mutate(label = str_remove(label, ".*!"),
-         NAME = str_extract(NAME, ".*,"))
-
-med_value_20 <- #DP04_0088
-  get_acs("county",
-          state = c("DC", "MD", "VA"),
-          variables = "DP04_0089",
-          year = 2020) %>%
-  left_join(load_variables(2020, "acs5/profile", T), by = c("variable" = "name")) %>%
-  select(GEOID, NAME, label, estimate) %>%
-  mutate(label = str_remove(label, ".*!"),
-         NAME = str_extract(NAME, ".*,"))
-
-med_hh_inc_20 <- #B19013_001
-  get_acs("county",
-          state = c("DC", "MD", "VA"),
-          variables = "B19013_001",
-          year = 2020) %>%
-  left_join(load_variables(2020, "acs5", T), by = c("variable" = "name")) %>%
-  select(GEOID, NAME, label, estimate) %>%
-  mutate(label = str_remove(label, ".*!"),
-         NAME = str_extract(NAME, ".*,"))
-
-bind_rows(med_hh_inc_20, int_inc_20, owner_occ_20, med_value_20, single_mother_w_young_20) %>%
-  arrange(GEOID)
+      get_acs("county",
+              state = c("DC", "MD", "VA"),
+              variables = "B19054_002",
+              summary_var = "B19054_001",
+              year = 2020) %>%
+      mutate(perc = estimate / summary_est * 100) %>%
+      left_join(load_variables(2020, "acs5", T), by = c("variable" = "name")) %>%
+      select(GEOID, NAME, label, estimate, summary_est, perc) %>%
+      mutate(label = str_remove(label, ".*!"),
+             NAME = str_extract(NAME, ".*,"))
+    
+    single_mother_w_young_20 <- get_acs(
+      "county",
+      state = c("DC", "MD", "VA"),
+      variables = "B11004_016",
+      summary_var = "B11004_001",
+      year = 2020
+    ) %>%
+      left_join(load_variables(2020, "acs5", T), by = c("variable" = "name")) %>%
+      mutate(label = str_remove(label, ".*!"),
+             NAME = str_extract(NAME, ".*,")) %>%
+      group_by(GEOID, NAME) %>%
+      summarise(estimate = sum(estimate),
+                summary_est = mean(summary_est)) %>%
+      ungroup() %>%
+      mutate(perc = estimate / summary_est * 100,
+             label = "single-female-headed with young children") %>%
+      select(GEOID, NAME, label, estimate, summary_est, perc)
+    
+    owner_occ_20 <- #DP04_0045
+      get_acs("county",
+              state = c("DC", "MD", "VA"),
+              variables = "DP04_0046",
+              summary_var = "DP04_0045",
+              year = 2020) %>%
+      mutate(perc = estimate / summary_est * 100) %>%
+      left_join(load_variables(2020, "acs5/profile", T), by = c("variable" = "name")) %>%
+      select(GEOID, NAME, label, estimate, summary_est, perc) %>%
+      mutate(label = str_remove(label, ".*!"),
+             NAME = str_extract(NAME, ".*,"))
+    
+    med_value_20 <- #DP04_0088
+      get_acs("county",
+              state = c("DC", "MD", "VA"),
+              variables = "DP04_0089",
+              year = 2020) %>%
+      left_join(load_variables(2020, "acs5/profile", T), by = c("variable" = "name")) %>%
+      select(GEOID, NAME, label, estimate) %>%
+      mutate(label = str_remove(label, ".*!"),
+             NAME = str_extract(NAME, ".*,"))
+    
+    med_hh_inc_20 <- #B19013_001
+      get_acs("county",
+              state = c("DC", "MD", "VA"),
+              variables = "B19013_001",
+              year = 2020) %>%
+      left_join(load_variables(2020, "acs5", T), by = c("variable" = "name")) %>%
+      select(GEOID, NAME, label, estimate) %>%
+      mutate(label = str_remove(label, ".*!"),
+             NAME = str_extract(NAME, ".*,"))
+    
+    all_counties <- bind_rows(med_hh_inc_20, int_inc_20, owner_occ_20, med_value_20, single_mother_w_young_20) %>%
+      mutate(year = 2020,
+             NAME = str_squish(str_remove(NAME, "CDP.*|city.*|County.*"))) %>% 
+      arrange(GEOID)
+    return(all_counties)
   }
-
+  
 }
 
-# w2_2020_dmv <- get_worksheet2_2020("dmv") %>%
-#   write_csv("Data - New Worksheet 2 - 2020 ACS - DMV.csv")
-# w2_2020_counties <- get_worksheet2_2020("counties") %>%
-#   write_csv("Data - New Worksheet 2 - 2020 ACS - Counties.csv")
-# w2_2020_places <- get_worksheet2_2020("place") %>%
-#   write_csv("Data - New Worksheet 2 - 2020 - places.csv")
+w2_2020_dmv <- get_worksheet2_2020("dmv") %>%
+  write_csv("Data - New Worksheet 2 - 2020 ACS - DMV.csv")
+w2_2020_counties <- get_worksheet2_2020("counties") %>%
+  write_csv("Data - New Worksheet 2 - 2020 ACS - Counties.csv")
+w2_2020_places <- get_worksheet2_2020("place") %>%
+  write_csv("Data - New Worksheet 2 - 2020 - places.csv")
 # 
 # w2_2020_dmv <- read_csv("Data - New Worksheet 2 - 2020 ACS - DMV.csv")
 # w2_2020_counties <- read_csv("Data - New Worksheet 2 - 2020 ACS - Counties.csv")

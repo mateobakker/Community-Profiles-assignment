@@ -20,7 +20,6 @@ library(foreign)
 get_worksheet2 <- function(unit) {
   require("foreign")
   temp <- tempfile()
-  #if(!unit %in% c("dmv", "places", "counties")) {stop("Only units are 'dmv' and 'counties'", call. = FALSE)}
   
   if(unit == "dmv") { 
     download.file("https://www2.census.gov/census_1990/cd903c01/stf327us.dbf", temp) 
@@ -89,7 +88,28 @@ get_worksheet2 <- function(unit) {
       filter(variable == "single female-headed hh with children") %>% 
       select(MSACMSA, variable, value, denom, perc, denom_type)
     
-    all <- bind_rows(dmv_owner_occupied, dmv_median_value, dmv_median_hh_inc, dmv_rcv_interest_inc, dmv_female_headed)
+    all <- bind_rows(dmv_owner_occupied, dmv_median_value, dmv_median_hh_inc, dmv_rcv_interest_inc, dmv_female_headed) %>% 
+      mutate(year = 1990) %>% 
+      rename(label = variable,
+             GEOID = MSACMSA) %>% 
+      left_join(cpi) %>% 
+      mutate(label = case_when(
+        label == "owner occupied" ~ "Owner-occupied",
+        label == "Median housing value" ~ "Median (dollars)",
+        label == "median hh income" ~ "Median household income in the past 12 months",
+        label == "hh with interest, dividend, or net rental income" ~ "With interest, dividends, or net rental income",
+        label == "single female-headed hh with children" ~ "single-female-headed with young children"
+      ),
+      adjusted_value = if_else(str_detect(label, "^Median"), round(value * inflation_factor), NA_real_),
+      year = "1990") %>% 
+      group_by(GEOID) %>% 
+      mutate(total_household = denom[label == "Owner-occupied"],
+             perc = if_else(!str_detect(label, "^Median"), value / total_household * 100, NA_real_),
+             NAME = "DMV Metro area") %>% 
+      ungroup() %>% 
+      mutate(label = factor(label, levels = c("Median household income in the past 12 months", "With interest, dividends, or net rental income", "Owner-occupied", "Median (dollars)", "single-female-headed with young children" ))) %>% 
+      arrange(NAME, GEOID, label) %>% 
+      select(GEOID, NAME, label, year, value, adjusted_value, total = denom, perc, denom_type)
     return(all)
     }
   
@@ -157,9 +177,37 @@ get_worksheet2 <- function(unit) {
                variable = if_else(name == "P0190005", "single female-headed hh with children", "all other households")) %>% 
         filter(variable == "single female-headed hh with children") %>% 
         ungroup() %>% 
-        select(STATEFP, PLACEFP, variable, value, denom, perc, denom_type)
-      bind_rows(dmv_owner_occupied, dmv_median_value, dmv_median_hh_inc, dmv_rcv_interest_inc, dmv_female_headed)} ) }
+        select(STATEFP, PLACEFP, variable, value, denom, perc, denom_type) 
+      all_places <- bind_rows(dmv_owner_occupied, dmv_median_value, dmv_median_hh_inc, dmv_rcv_interest_inc, dmv_female_headed) %>% 
+        ungroup %>% 
+        mutate(year = 1990) %>% 
+        rename(label = variable) %>% 
+        left_join(cpi) %>% 
+        mutate(label = case_when(
+          label == "owner occupied" ~ "Owner-occupied",
+          label == "Median housing value" ~ "Median (dollars)",
+          label == "median hh income" ~ "Median household income in the past 12 months",
+          label == "hh with interest, dividend, or net rental income" ~ "With interest, dividends, or net rental income",
+          label == "single female-headed hh with children" ~ "single-female-headed with young children"
+        ),
+        adjusted_value = if_else(str_detect(label, "^Median"), round(value * inflation_factor), NA_real_),
+        year = "1990") %>% 
+        mutate(GEOID = paste0(STATEFP, PLACEFP)) %>% 
+        group_by(GEOID) %>% 
+        mutate(total_household = denom[label == "Owner-occupied"],
+               perc = if_else(!str_detect(label, "^Median"), value / total_household * 100, NA_real_)) %>% 
+        ungroup() %>% 
+        left_join(names_geoids) %>% 
+        mutate(label = factor(label, levels = c("Median household income in the past 12 months", "With interest, dividends, or net rental income", "Owner-occupied", "Median (dollars)", "single-female-headed with young children" ))) %>% 
+        arrange(NAME, GEOID, label) %>% 
+        select(GEOID, NAME, label, year, value, adjusted_value, total = denom, perc, denom_type) 
+      
+      return(all_places)
+      } )
     
+      
+  }
+  
     else {
     map2_dfr(c("dc", "md", "va"), c(11, 11, 57), ~{
       download.file(glue::glue("https://www2.census.gov/census_1990/CD90_3A_{.y}/stf327{.x}.dbf"), temp) 
@@ -225,14 +273,38 @@ get_worksheet2 <- function(unit) {
         filter(variable == "single female-headed hh with children") %>% 
         ungroup() %>% 
         select(STATEFP, CNTY, variable, value, denom, perc, denom_type)
-      bind_rows(dmv_owner_occupied, dmv_median_value, dmv_median_hh_inc, dmv_rcv_interest_inc, dmv_female_headed) %>% 
+      all <- bind_rows(dmv_owner_occupied, dmv_median_value, dmv_median_hh_inc, dmv_rcv_interest_inc, dmv_female_headed) %>% 
         ungroup %>% 
         mutate(GEOID = paste0(STATEFP, CNTY)) %>% 
-        select(GEOID, 3:7)
+        select(GEOID, 3:7) %>% 
+        ungroup %>% 
+        mutate(year = 1990) %>% 
+        rename(label = variable) %>% 
+        left_join(cpi) %>% 
+        mutate(label = case_when(
+          label == "owner occupied" ~ "Owner-occupied",
+          label == "Median housing value" ~ "Median (dollars)",
+          label == "median hh income" ~ "Median household income in the past 12 months",
+          label == "hh with interest, dividend, or net rental income" ~ "With interest, dividends, or net rental income",
+          label == "single female-headed hh with children" ~ "single-female-headed with young children"
+        ),
+        adjusted_value = if_else(str_detect(label, "^Median"), round(value * inflation_factor), NA_real_),
+        year = "1990") %>% 
+        group_by(GEOID) %>% 
+        mutate(total_household = denom[label == "Owner-occupied"],
+               perc = if_else(!str_detect(label, "^Median"), value / total_household * 100, NA_real_)) %>% 
+        ungroup() %>% 
+        left_join(names_geoids) %>% 
+        mutate(label = factor(label, levels = c("Median household income in the past 12 months", "With interest, dividends, or net rental income", "Owner-occupied", "Median (dollars)", "single-female-headed with young children" ))) %>% 
+        arrange(NAME, GEOID, label) %>% 
+        select(GEOID, NAME, label, year, value, adjusted_value, total = denom, perc, denom_type) 
+      return(all)
     })
   }
   
 }
+get_worksheet2("dmv")
+
 
 w2_1990_places <- get_worksheet2("places") %>% 
   ungroup %>% 

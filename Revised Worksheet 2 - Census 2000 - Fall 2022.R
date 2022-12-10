@@ -1,8 +1,10 @@
 library(tidyverse)
 library(tidycensus)
 
-#### Revised November 15, 2022
+#### Revised December 11, 2022
 get_w2_2000 <- function(state, county, geography) {
+  require(tidyverse)
+  require(tidycensus)
   if(geography == "place") {
     owner_occ <- get_decennial(
       geography = geography,
@@ -75,7 +77,7 @@ get_w2_2000 <- function(state, county, geography) {
       rename(total = summary_value) %>%
       select(GEOID, NAME, label, value, total, perc) 
     
-    bind_rows(single_mother_w_young,
+    all_places <- bind_rows(single_mother_w_young,
               int_income,
               med_hh_inc,
               med_value,
@@ -87,9 +89,18 @@ get_w2_2000 <- function(state, county, geography) {
         label == "Median household income in 1999" ~ "Median household income in the past 12 months",
         label == "With interest, dividends, or net rental income" ~ "With interest, dividends, or net rental income",
         label == "With own children under 18 years" ~ "single-female-headed with young children"
-      ))
+      )) %>% 
+      mutate(year = 2000) %>% 
+      left_join(cpi) %>% 
+      mutate(adjusted_value = if_else(str_detect(label, "^Median"), value * inflation_factor, NA_real_)) %>% 
+      mutate(year = "2000",
+             NAME = str_squish(str_remove(NAME, "CDP.*|city.*|County.*"))) %>% 
+      select(GEOID, NAME, year, label, value, adjusted_value, total, perc)
+    
+    return(all_places)
   }
-  else {
+  
+  if (geography == "county") {
     owner_occ <- get_decennial(
       geography = geography,
       state = state,
@@ -161,7 +172,7 @@ get_w2_2000 <- function(state, county, geography) {
       rename(total = summary_value) %>%
       select(GEOID, NAME, label, value, total, perc) 
     
-    bind_rows(single_mother_w_young,
+    all_counties <- bind_rows(single_mother_w_young,
               int_income,
               med_hh_inc,
               med_value,
@@ -172,21 +183,161 @@ get_w2_2000 <- function(state, county, geography) {
         label == "Median household income in 1999" ~ "Median household income in the past 12 months",
         label == "With interest, dividends, or net rental income" ~ "With interest, dividends, or net rental income",
         label == "With own children under 18 years" ~ "single-female-headed with young children"
-      ))
+      )) %>% 
+      mutate(year = 2000) %>% 
+      left_join(cpi) %>% 
+      mutate(adjusted_value = if_else(str_detect(label, "^Median"), value * inflation_factor, NA_real_)) %>% 
+      mutate(year = "2000",
+             NAME = str_squish(str_remove(NAME, "CDP.*|city.*|County.*"))) %>% 
+      select(GEOID, NAME, year, label, value, adjusted_value, total, perc)
+    return(all_counties)
   }
+    
+    else {
+      # Median value
+      variables = "H076001"
+      url <- glue::glue("https://api.census.gov/data/2000/dec/sf3?get={variables},NAME&for=primary%20metropolitan%20statistical%20area:*&in=consolidated%20metropolitan%20statistical%20area:8872")
+      med_value <- jsonlite::fromJSON(url) %>%
+        as_tibble() %>%
+        set_names(.[1,]) %>%
+        slice(-1) %>%
+        rename(value = {{variables}}) %>%
+        mutate(name = variables) %>%
+        left_join(load_variables(2000, "sf3", T)) %>%
+        mutate(label = str_remove(label, ".*!")) %>%
+        select(GEOID = 4, NAME, label, value) %>%
+        mutate(value = parse_number(value)) %>%
+        filter(GEOID == "8840") %>%
+        separate(NAME, c("NAME", "drop"), sep = ";") %>%
+        select(-drop)
+
+      ## Owner-occupied units
+      variables = "H007002"
+      summary_var = "H007001"
+      cens_vars = str_c(summary_var, variables, sep = ",")
+      url <- glue::glue("https://api.census.gov/data/2000/dec/sf3?get={cens_vars},NAME&for=primary%20metropolitan%20statistical%20area:*&in=consolidated%20metropolitan%20statistical%20area:8872")
+      owner_occ <- jsonlite::fromJSON(url) %>%
+        as_tibble() %>%
+        set_names(.[1,]) %>%
+        slice(-1) %>%
+        rename(summary_val = {{summary_var}}) %>%
+        pivot_longer(variables) %>%
+        left_join(load_variables(2000, "sf3", T)) %>%
+        mutate(label = str_remove(label, ".*!")) %>%
+        select(GEOID = 4, NAME, label, value, summary_val) %>%
+        mutate(across(value:summary_val, parse_number)) %>%
+        rename(total = summary_val) %>%
+        select(GEOID, NAME, label, value, total) %>%
+        mutate(perc = value / total * 100) %>%
+        filter(GEOID == "8840") %>%
+        group_by(GEOID, NAME, label) %>%
+        summarise(value = sum(value),
+                  total = mean(total)) %>%
+        mutate(perc = value / total * 100) %>%
+        separate(NAME, c("NAME", "drop"), sep = ";") %>%
+        select(-drop) %>%
+        ungroup()
+
+      ## Median hh income
+      variables <- "P053001"
+      url <- glue::glue("https://api.census.gov/data/2000/dec/sf3?get={variables},NAME&for=primary%20metropolitan%20statistical%20area:*&in=consolidated%20metropolitan%20statistical%20area:8872")
+      med_hh_inc <- jsonlite::fromJSON(url) %>%
+        as_tibble() %>%
+        set_names(.[1,]) %>%
+        slice(-1) %>%
+        rename(value = {{variables}}) %>%
+        mutate(name = variables) %>%
+        left_join(load_variables(2000, "sf3", T)) %>%
+        mutate(label = str_remove(label, ".*!")) %>%
+        select(GEOID = 4, NAME, label, value) %>%
+        mutate(value = parse_number(value)) %>%
+        filter(GEOID == "8840") %>%
+        separate(NAME, c("NAME", "drop"), sep = ";") %>%
+        select(-drop)
+
+      ## Has interest, dividend, or net rental income
+      variables = "P061002"
+      summary_var = "P061001"
+      cens_vars = str_c(summary_var, variables, sep = ",")
+      url <- glue::glue("https://api.census.gov/data/2000/dec/sf3?get={cens_vars},NAME&for=primary%20metropolitan%20statistical%20area:*&in=consolidated%20metropolitan%20statistical%20area:8872")
+      int_income <- jsonlite::fromJSON(url) %>%
+        as_tibble() %>%
+        set_names(.[1,]) %>%
+        slice(-1) %>%
+        rename(summary_val = {{summary_var}}) %>%
+        pivot_longer(variables) %>%
+        left_join(load_variables(2000, "sf3", T)) %>%
+        mutate(label = str_remove(label, ".*!")) %>%
+        select(GEOID = 4, NAME, label, value, summary_val) %>%
+        mutate(across(value:summary_val, parse_number)) %>%
+        rename(total = summary_val) %>%
+        select(GEOID, NAME, label, value, total) %>%
+        mutate(perc = value / total * 100) %>%
+        filter(GEOID == "8840") %>%
+        group_by(GEOID, NAME, label) %>%
+        summarise(value = sum(value),
+                  total = mean(total)) %>%
+        mutate(perc = value / total * 100) %>%
+        separate(NAME, c("NAME", "drop"), sep = ";") %>%
+        select(-drop) %>%
+        ungroup()
+
+      ## Single-female headed with children
+      variables = "P015016"
+      summary_var = "P015001"
+      cens_vars = str_c(summary_var, variables, sep = ",")
+      url <- glue::glue("https://api.census.gov/data/2000/dec/sf3?get={cens_vars},NAME&for=primary%20metropolitan%20statistical%20area:*&in=consolidated%20metropolitan%20statistical%20area:8872")
+      single_mother_w_young <- jsonlite::fromJSON(url) %>%
+        as_tibble() %>%
+        set_names(.[1,]) %>%
+        slice(-1) %>%
+        rename(summary_val = {{summary_var}}) %>%
+        pivot_longer(variables) %>%
+        left_join(load_variables(2000, "sf3", T)) %>%
+        mutate(label = str_remove(label, ".*!")) %>%
+        select(GEOID = 4, NAME, label, value, summary_val) %>%
+        mutate(across(value:summary_val, parse_number)) %>%
+        rename(total = summary_val) %>%
+        select(GEOID, NAME, label, value, total) %>%
+        mutate(perc = value / total * 100) %>%
+        filter(GEOID == "8840") %>%
+        group_by(GEOID, NAME, label) %>%
+        summarise(value = sum(value),
+                  total = mean(total)) %>%
+        mutate(perc = value / total * 100) %>%
+        separate(NAME, c("NAME", "drop"), sep = ";") %>%
+        select(-drop) %>%
+        ungroup()
+
+      all_dmv <- bind_rows(owner_occ, med_value, med_hh_inc, int_income, single_mother_w_young) %>%
+        mutate(label = case_when(
+          label == "Owner occupied" ~ "Owner-occupied",
+          label == "Median value" ~ "Median (dollars)",
+          label == "Median household income in 1999" ~ "Median household income in the past 12 months",
+          label == "With interest, dividends, or net rental income" ~ "With interest, dividends, or net rental income",
+          label == "With own children under 18 years" ~ "single-female-headed with young children"
+        )) %>% 
+        mutate(year = 2000) %>% 
+        left_join(cpi) %>% 
+        mutate(adjusted_value = if_else(str_detect(label, "^Median"), value * inflation_factor, NA_real_)) %>% 
+        mutate(year = "2000",
+               NAME = "DMV Metro area") %>% 
+        select(GEOID, NAME, year, label, value, adjusted_value, total, perc)
+      return(all_dmv)
+    }
+  
 }
 
-w2_complete_2000 <- pmap_dfr(list(counties_places$state, 
+### OJO: Run inputs for Revised Worksheet 2.R script for needed counties_places tibble
+w2_2000_counties_and_places <- pmap_dfr(list(counties_places$state, 
                                   counties_places$county, 
                                   counties_places$geography), 
                              get_w2_2000) %>% 
-  mutate(year = 2000) %>% 
-  left_join(cpi) %>% 
-  mutate(adjusted_value = if_else(str_detect(label, "^Median"), value * inflation_factor, NA_real_)) %>% 
-  mutate(year = "2000",
-         NAME = str_squish(str_remove(NAME, "CDP.*|city.*|County.*"))) %>% 
-  select(GEOID, NAME, year, label, value, adjusted_value, total, perc) %>% 
   write_csv("Data/2000 Census - New Worksheet 2 - Counties and Places - Fall 2022.csv")
+
+w2_2000_dmv <- get_w2_2000(NULL, NULL, "dmv") %>% 
+  write_csv("Data/2000 Census - New Worksheet 2 - DMV - Fall 2022.csv")
+
 
 #### DMV metro ####
 ## This is for the DMV as a whole
@@ -305,7 +456,7 @@ w2_complete_2000 <- pmap_dfr(list(counties_places$state,
 #   select(-drop) %>% 
 #   ungroup()
 # 
-# worksheet2_2000_dmv <- bind_rows(owner_occ, med_value, med_hh_inc, int_income, single_mother_w_young)
+# all_dmv <- bind_rows(owner_occ, med_value, med_hh_inc, int_income, single_mother_w_young)
 # worksheet2_2000_dmv %>% 
 #   write_csv("Data/2000 Census - New Worksheet 2 - DMV - Fall 2022.csv")
 
